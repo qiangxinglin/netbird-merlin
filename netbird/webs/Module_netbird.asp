@@ -236,7 +236,7 @@
 
         function show_hide_element() {
             E("netbird_status_tr").style.display = "";
-            E("netbird_jion_btn_div").style.display = ""; 
+            E("netbird_jion_btn_div").style.display = "";
         }
 
         function register_event() {
@@ -262,8 +262,12 @@
                 dataType: "json",
                 success: function (response) {
                     if (response.result) {
-                        var status = decodeURIComponent(escape(window.atob(response.result)))
-                        E("netbird_status").innerHTML = status;
+                        var myResult = response.result;
+                        if (myResult.startsWith("base64://")) {
+                            myResult = myResult.myReplace("base64://", "");
+                            myResult = decodeURIComponent(escape(window.atob(myResult)))
+                        }
+                        E("netbird_status").innerHTML = myResult;
                     }
                     setTimeout("get_proces_status();", 5000);
                 },
@@ -329,7 +333,7 @@
             setTimeout("count_down_close();", 1000);
         }
 
-        function get_log(flag) {
+        function get_log(auto_close_seconds = 6) {
             E("ok_button").style.visibility = "hidden";
             showWBLoadingBar();
             var TARGET_URL = '/_temp/netbird_log.txt'
@@ -344,7 +348,7 @@
                         retArea.value = response.myReplace("XU6J03M6", " ");
                         E("ok_button").style.visibility = "visible";
                         retArea.scrollTop = retArea.scrollHeight;
-                        count_down = 6;
+                        count_down = auto_close_seconds;
                         refresh_flag = 1;
                         count_down_close();
                         return false;
@@ -428,7 +432,7 @@
                                         <div class="SimpleNote">
                                             <span>NetBird是一款简单安全的自动化组网工具。</span>
                                             <span><a type="button" class="ks_btn" href="javascript:void(0);"
-                                                    onclick="get_log()" style="margin-left:5px;">运行日志</a></span>
+                                                    onclick="get_log(-1)" style="margin-left:5px;">运行日志</a></span>
                                         </div>
                                         <div id="netbird_main">
                                             <table width="100%" border="1" align="center" cellpadding="4"
@@ -458,7 +462,8 @@
                                                 <tr id="netbird_status_tr" style="display:none;">
                                                     <th>服务状态</th>
                                                     <td>
-                                                        <div id="netbird_status" style="font-family: emoji;white-space: pre-wrap;">检测中...
+                                                        <div id="netbird_status"
+                                                            style="font-family: emoji;white-space: pre-wrap;">检测中...
                                                         </div>
                                                     </td>
                                                 </tr>
