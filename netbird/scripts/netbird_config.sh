@@ -3,7 +3,7 @@ source /koolshare/scripts/base.sh
 eval $(dbus export netbird) 
 alias echo_date='echo 【$(TZ=UTC-8 date -R +%Y年%m月%d日\ %X)】:'
 LOGFILE=/tmp/upload/netbird_log.txt 
-
+LOGUPDATEFILE=/tmp/upload/netbird_update_log.txt 
 
 case $1 in
 start)
@@ -36,7 +36,37 @@ web_submit)
 
     echo_date "操作完成" >> ${LOGFILE}
     echo "XU6J03M6" >> ${LOGFILE}
-	;; 
+	;;
+update)
+    echo "" > ${LOGUPDATEFILE}
+    http_response "update netbird please wait ..."
+
+    echo_date "准备更新，检测必要条件" >> ${LOGUPDATEFILE}    
+	GITAPI="https://api.github.com/repos/netbirdio/netbird/releases/latest"
+	TAGNAME=$(curl -s ${GITAPI} | jq -r '.tag_name | sub("^v"; "")') 
+ 
+    if [ "$TAGNAME" == "$netbird_version" ]; then
+        echo_date "当前版本已是最新($netbird_version)，无需更新。" >> ${LOGUPDATEFILE} 
+    else
+        echo_date "当前版本：$netbird_version, 最新版本：$TAGNAME, 开始更新" >> ${LOGUPDATEFILE}
+        dbus set netbird_version="$TAGNAME"
+
+        PROXY="https://gh-proxy.com/"
+        GITHUB="https://github.com/netbirdio/netbird/releases/download"
+        DOWNLOAD_PATH="v${TAGNAME}/netbird_${TAGNAME}_linux_arm64.tar.gz"
+        wget -O /tmp/netbird.tar.gz "${PROXY}${GITHUB}/${DOWNLOAD_PATH}" 2>&1 | tee ${LOGUPDATEFILE}
+        tar -xzf /tmp/netbird.tar.gz -C /koolshare/bin/
+        chmod 755 /koolshare/bin/netbird
+
+        echo_date "准备重新启动netbird" >> ${LOGUPDATEFILE}
+		/koolshare/scripts/netbird_service.sh restart
+        nohup netbird up >> $LOGFILE 2>&1 &
+    fi
+
+    echo_date "操作完成" >> ${LOGUPDATEFILE}
+    echo "XU6J03M6" >> ${LOGUPDATEFILE} 
+    
+    ;;
 status)
     #状态
     STATUS=$(netbird status)

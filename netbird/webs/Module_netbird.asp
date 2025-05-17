@@ -215,7 +215,7 @@
                     conf2obj();
                     register_event();
                     if (dbus["netbird_enable"] == "1") {
-                        get_proces_status();
+                        get_process_status();
                         show_hide_element();
                     }
                 }
@@ -236,7 +236,6 @@
 
         function show_hide_element() {
             E("netbird_status_tr").style.display = "";
-            E("netbird_jion_btn_div").style.display = "";
         }
 
         function register_event() {
@@ -251,7 +250,7 @@
                 });
         }
 
-        function get_proces_status() {
+        function get_process_status() {
             var id = parseInt(Math.random() * 100000000);
             var postData = { "id": id, "method": "netbird_config.sh", "params": ["status"], "fields": "" };
             $.ajax({
@@ -283,7 +282,6 @@
                 dbus_new[params_chk[i]] = E(params_chk[i]).checked ? '1' : '0';
             }
 
-            E("netbird_jion_btn").disabled = true;
             var id = parseInt(Math.random() * 100000000);
             var postData = { "id": id, "method": "netbird_config.sh", "params": ["web_submit"], "fields": dbus_new };
             $.ajax({
@@ -295,6 +293,20 @@
                     if (response.result == id) {
                         get_log();
                     }
+                }
+            });
+        }
+
+        function update() {
+            var id = parseInt(Math.random() * 100000000);
+            var postData = { "id": id, "method": "netbird_config.sh", "params": ["update"], "fields": {} };
+            $.ajax({
+                type: "POST",
+                url: "/_api/",
+                data: JSON.stringify(postData),
+                dataType: "json",
+                success: function (response) {
+                    get_log("netbird_update_log");
                 }
             });
         }
@@ -333,10 +345,10 @@
             setTimeout("count_down_close();", 1000);
         }
 
-        function get_log(auto_close_seconds = 6) {
+        function get_log(target_url = "netbird_log", auto_close_seconds = 6) {
             E("ok_button").style.visibility = "hidden";
             showWBLoadingBar();
-            var TARGET_URL = '/_temp/netbird_log.txt'
+            var TARGET_URL = '/_temp/' + target_url + '.txt'
             $.ajax({
                 url: TARGET_URL,
                 type: 'GET',
@@ -353,7 +365,7 @@
                         count_down_close();
                         return false;
                     }
-                    setTimeout("get_log();", 500);
+                    setTimeout(() => get_log(target_url), 500);
                     retArea.value = response.myReplace("XU6J03M6", " ");
                     retArea.scrollTop = retArea.scrollHeight;
                 }
@@ -363,21 +375,7 @@
         function menu_hook(title, tab) {
             tabtitle[tabtitle.length - 1] = new Array("", "netbird");
             tablink[tablink.length - 1] = new Array("", "Module_netbird.asp");
-        }
-
-        function open_hint(itemNum) {
-            var statusmenu = "";
-            if (itemNum == 1) {
-                statusmenu = "&nbsp;&nbsp;&nbsp;&nbsp;NetBird使用点对点连接技术自动创建安全的私有网络。";
-                _caption = "网络配置";
-                return overlib(statusmenu, OFFSETX, 160, OFFSETY, 10, RIGHT, STICKY, WIDTH, 'width', CAPTION, _caption);
-            }
-            if (itemNum == 2) {
-                statusmenu = "&nbsp;&nbsp;&nbsp;&nbsp;通过管理控制台管理设备和网络策略。";
-                _caption = "控制台";
-                return overlib(statusmenu, OFFSETX, 20, OFFSETY, -330, RIGHT, STICKY, WIDTH, 'width', CAPTION, _caption);
-            }
-        }
+        } 
     </script>
 </head>
 
@@ -432,7 +430,11 @@
                                         <div class="SimpleNote">
                                             <span>NetBird是一款简单安全的自动化组网工具。</span>
                                             <span><a type="button" class="ks_btn" href="javascript:void(0);"
-                                                    onclick="get_log(-1)" style="margin-left:5px;">运行日志</a></span>
+                                                    onclick="get_log(-1)" style="margin-left:5px;">详细状态</a></span>
+                                            <span><a type="button" class="ks_btn" href="https://app.netbird.io"
+                                                    target="_blank" style="margin-left:5px;">打开控制台</a></span>
+                                            <span><a type="button" class="ks_btn" href="javascript:void(0);"
+                                                    onclick="update()" style="margin-left:5px;">更新版本</a></span>
                                         </div>
                                         <div id="netbird_main">
                                             <table width="100%" border="1" align="center" cellpadding="4"
@@ -467,19 +469,7 @@
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                <tr>
-                                                    <th><a onmouseover="open_hint(2)" onmouseout="nd()"
-                                                            class="hintstyle">管理控制台</a></th>
-                                                    <td>
-                                                        <a href="https://app.netbird.io" target="_blank"
-                                                            class="ks_btn">打开控制台</a>
-                                                    </td>
-                                                </tr>
                                             </table>
-                                        </div>
-                                        <div id="netbird_jion_btn_div" class="apply_gen" style="display: none;">
-                                            <input class="button_gen" id="netbird_jion_btn" onClick="save()"
-                                                type="button" value="保存设置" />
                                         </div>
                                     </td>
                                 </tr>
