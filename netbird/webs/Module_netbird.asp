@@ -268,10 +268,10 @@
                         }
                         E("netbird_status").innerHTML = myResult;
                     }
-                    setTimeout("get_proces_status();", 5000);
+                    setTimeout(() => get_process_status(), 5000);
                 },
                 error: function () {
-                    setTimeout("get_proces_status();", 15000);
+                    setTimeout(() => get_process_status(), 15000);
                 }
             });
         }
@@ -291,7 +291,7 @@
                 dataType: "json",
                 success: function (response) {
                     if (response.result == id) {
-                        get_log();
+                        get_log_auto_close();
                     }
                 }
             });
@@ -306,7 +306,7 @@
                 data: JSON.stringify(postData),
                 dataType: "json",
                 success: function (response) {
-                    get_log("netbird_update_log");
+                    get_update_log();
                 }
             });
         }
@@ -345,7 +345,16 @@
             setTimeout("count_down_close();", 1000);
         }
 
-        function get_log(target_url = "netbird_log", auto_close_seconds = 6) {
+        function get_log_auto_close() {
+            get_log_internal("netbird_log", 6);
+        }
+        function get_log_never_close() {
+            get_log_internal("netbird_log", -1);
+        }
+        function get_update_log() {
+            get_log_internal("netbird_update_log", 6);
+        }
+        function get_log_internal(target_url, auto_close_seconds = 6) {
             E("ok_button").style.visibility = "hidden";
             showWBLoadingBar();
             var TARGET_URL = '/_temp/' + target_url + '.txt'
@@ -365,7 +374,7 @@
                         count_down_close();
                         return false;
                     }
-                    setTimeout(() => get_log(target_url), 500);
+                    setTimeout(() => get_log_internal(target_url), 500);
                     retArea.value = response.myReplace("XU6J03M6", " ");
                     retArea.scrollTop = retArea.scrollHeight;
                 }
@@ -430,7 +439,8 @@
                                         <div class="SimpleNote">
                                             <span>NetBird是一款简单安全的自动化组网工具。</span>
                                             <span><a type="button" class="ks_btn" href="javascript:void(0);"
-                                                    onclick="get_log(-1)" style="margin-left:5px;">详细状态</a></span>
+                                                    onclick="get_log_never_close()"
+                                                    style="margin-left:5px;">详细状态</a></span>
                                             <span><a type="button" class="ks_btn" href="https://app.netbird.io"
                                                     target="_blank" style="margin-left:5px;">打开控制台</a></span>
                                             <span><a type="button" class="ks_btn" href="javascript:void(0);"
