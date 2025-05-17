@@ -181,7 +181,6 @@
         }
     </style>
     <script>
-        var params_chk = ['netbird_enable'];
         var refresh_flag;
         var count_down;
         var dbus = {};
@@ -192,6 +191,7 @@
         }
 
         function init() {
+            E("netbird_status").innerHTML = "检测中...";
             show_menu(menu_hook);
             set_skin();
             get_dbus_data();
@@ -223,14 +223,14 @@
         }
 
         function conf2obj() {
-            for (var i = 0; i < params_chk.length; i++) {
-                if (dbus[params_chk[i]]) {
-                    E(params_chk[i]).checked = dbus[params_chk[i]] != "0";
-                }
-            }
+
+            E("netbird_enable").checked = dbus["netbird_enable"] != "0";
 
             if (dbus["netbird_version"]) {
                 E("netbird_version").innerHTML = " - " + dbus["netbird_version"];
+            }
+            if (dbus["netbird_setup_key"]) {
+                E("netbird_setup_key").value = dbus["netbird_setup_key"];
             }
         }
 
@@ -268,19 +268,18 @@
                         }
                         E("netbird_status").innerHTML = myResult;
                     }
-                    setTimeout("get_proces_status();", 5000);
+                    setTimeout(() => get_process_status(), 5000);
                 },
                 error: function () {
-                    setTimeout("get_proces_status();", 15000);
+                    setTimeout(() => get_process_status(), 15000);
                 }
             });
         }
 
         function save() {
-            var dbus_new = {};
-            for (var i = 0; i < params_chk.length; i++) {
-                dbus_new[params_chk[i]] = E(params_chk[i]).checked ? '1' : '0';
-            }
+            var dbus_new = {};      
+            dbus_new["netbird_enable"] = E("netbird_enable").checked ? '1' : '0';
+            dbus_new["netbird_setup_key"] = E("netbird_setup_key").value;
 
             var id = parseInt(Math.random() * 100000000);
             var postData = { "id": id, "method": "netbird_config.sh", "params": ["web_submit"], "fields": dbus_new };
@@ -291,7 +290,7 @@
                 dataType: "json",
                 success: function (response) {
                     if (response.result == id) {
-                        get_log();
+                        get_log_auto_close();
                     }
                 }
             });
@@ -306,7 +305,7 @@
                 data: JSON.stringify(postData),
                 dataType: "json",
                 success: function (response) {
-                    get_log("netbird_update_log");
+                    get_update_log();
                 }
             });
         }
@@ -345,7 +344,16 @@
             setTimeout("count_down_close();", 1000);
         }
 
-        function get_log(target_url = "netbird_log", auto_close_seconds = 6) {
+        function get_log_auto_close() {
+            get_log_internal("netbird_log", 6);
+        }
+        function get_log_never_close() {
+            get_log_internal("netbird_log", -1);
+        }
+        function get_update_log() {
+            get_log_internal("netbird_update_log", 6);
+        }
+        function get_log_internal(target_url, auto_close_seconds = 6) {
             E("ok_button").style.visibility = "hidden";
             showWBLoadingBar();
             var TARGET_URL = '/_temp/' + target_url + '.txt'
@@ -365,7 +373,7 @@
                         count_down_close();
                         return false;
                     }
-                    setTimeout(() => get_log(target_url), 500);
+                    setTimeout(() => get_log_internal(target_url), 500);
                     retArea.value = response.myReplace("XU6J03M6", " ");
                     retArea.scrollTop = retArea.scrollHeight;
                 }
@@ -430,7 +438,8 @@
                                         <div class="SimpleNote">
                                             <span>NetBird是一款简单安全的自动化组网工具。</span>
                                             <span><a type="button" class="ks_btn" href="javascript:void(0);"
-                                                    onclick="get_log(-1)" style="margin-left:5px;">详细状态</a></span>
+                                                    onclick="get_log_never_close()"
+                                                    style="margin-left:5px;">详细状态</a></span>
                                             <span><a type="button" class="ks_btn" href="https://app.netbird.io"
                                                     target="_blank" style="margin-left:5px;">打开控制台</a></span>
                                             <span><a type="button" class="ks_btn" href="javascript:void(0);"
@@ -461,11 +470,21 @@
                                                         </div>
                                                     </td>
                                                 </tr>
+                                                <tr id="setup_key_tr">
+                                                    <th>setup key</th>
+                                                    <td>
+                                                        <input type="text" id="netbird_setup_key" class="input_ss_table"
+                                                            style="background-color: rgb(89, 110, 116);width:300px;">
+                                                        <span><a type="button" class="ks_btn" href="javascript:void(0);"
+                                                                onclick="save()" style="margin-left:5px;">▲</a></span>
+                                                    </td>
+                                                </tr>
                                                 <tr id="netbird_status_tr" style="display:none;">
                                                     <th>服务状态</th>
                                                     <td>
                                                         <div id="netbird_status"
-                                                            style="font-family: emoji;white-space: pre-wrap;">检测中...
+                                                            style="font-family: emoji;white-space: pre-wrap;padding-left: 5px;">
+                                                            检测中...
                                                         </div>
                                                     </td>
                                                 </tr>
