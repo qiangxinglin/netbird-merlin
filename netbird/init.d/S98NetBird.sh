@@ -11,8 +11,8 @@ start() {
     done
     # 检查是否已启用 NetBird
     if [ "$(dbus get netbird_enable)" == "1" ]; then
-        /koolshare/scripts/netbird_service.sh start
-        nohup netbird up >> $LOGFILE 2>&1 &
+        /koolshare/scripts/netbird_service.sh start  
+        nohup netbird up >> $LOGFILE 2>&1 & 
     fi
 }
 
