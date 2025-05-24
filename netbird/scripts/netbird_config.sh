@@ -50,14 +50,13 @@ update)
     tag_name=$(cat $latest_version_file | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     download_url=$(cat $latest_version_file | grep '"browser_download_url":' | grep 'linux_arm64.tar.gz' | sed -E 's/.*"([^"]+)".*/\1/')
  
-    if [ "$tag_name" == "$netbird_version" ]; then
+    if [[ "$tag_name" == "$netbird_version" ]]; then
         echo_date "当前版本已是最新($netbird_version)，无需更新。" >> ${LOGUPDATEFILE} 
     else
         echo_date "当前版本：$netbird_version, 最新版本：$tag_name, 开始更新" >> ${LOGUPDATEFILE}
         dbus set netbird_version="$tag_name"
 
-        PROXY="https://gh-proxy.com/" 
-        wget -O /tmp/netbird.tar.gz "${PROXY}${download_url}" 2>&1 | tee ${LOGUPDATEFILE}
+        wget -O /tmp/netbird.tar.gz "https://ghfast.top/${download_url}" 2>&1 | tee ${LOGUPDATEFILE}
         tar -xzf /tmp/netbird.tar.gz -C /koolshare/bin/
         chmod 755 /koolshare/bin/netbird
 
