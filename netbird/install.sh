@@ -1,9 +1,10 @@
 #!/bin/sh
 source /koolshare/scripts/base.sh
 alias echo_date='echo 【$(TZ=UTC-8 date -R +%Y年%m月%d日\ %X)】:'
-MODEL="BE-3600"
-FW_TYPE_CODE="4"
-FW_TYPE_NAME="koolshare梅林改版固件"
+MODEL=
+UI_TYPE=ASUSWRT
+FW_TYPE_CODE=
+FW_TYPE_NAME=
 DIR=$(cd $(dirname $0); pwd)
 module=${DIR##*/}
 
@@ -18,11 +19,11 @@ get_model(){
 }
 
 get_fw_type() {
-	local KS_TAG=$(nvram get extendno|grep -Eo "kool.+")
+	local KS_TAG=$(nvram get extendno|grep koolshare)
 	if [ -d "/koolshare" ];then
 		if [ -n "${KS_TAG}" ];then
 			FW_TYPE_CODE="2"
-			FW_TYPE_NAME="${KS_TAG}官改固件"
+			FW_TYPE_NAME="koolshare官改固件"
 		else
 			FW_TYPE_CODE="4"
 			FW_TYPE_NAME="koolshare梅林改版固件"
@@ -47,6 +48,52 @@ platform_test(){
 	fi
 }
 
+
+get_ui_type(){
+	# default value
+	[ "${MODEL}" == "RT-AC86U" ] && local ROG_RTAC86U=0
+	[ "${MODEL}" == "GT-AC2900" ] && local ROG_GTAC2900=1
+	[ "${MODEL}" == "GT-AC5300" ] && local ROG_GTAC5300=1
+	[ "${MODEL}" == "GT-AX11000" ] && local ROG_GTAX11000=1
+	[ "${MODEL}" == "GT-AXE11000" ] && local ROG_GTAXE11000=1
+	[ "${MODEL}" == "GT-AX6000" ] && local ROG_GTAX6000=1
+	local KS_TAG=$(nvram get extendno|grep koolshare)
+	local EXT_NU=$(nvram get extendno)
+	local EXT_NU=$(echo ${EXT_NU%_*} | grep -Eo "^[0-9]{1,10}$")
+	local BUILDNO=$(nvram get buildno)
+	[ -z "${EXT_NU}" ] && EXT_NU="0"
+	# RT-AC86U
+	if [ -n "${KS_TAG}" -a "${MODEL}" == "RT-AC86U" -a "${EXT_NU}" -lt "81918" -a "${BUILDNO}" != "386" ];then
+		# RT-AC86U的官改固件，在384_81918之前的固件都是ROG皮肤，384_81918及其以后的固件（包括386）为ASUSWRT皮肤
+		ROG_RTAC86U=1
+	fi
+	# GT-AC2900
+	if [ "${MODEL}" == "GT-AC2900" ] && [ "${FW_TYPE_CODE}" == "3" -o "${FW_TYPE_CODE}" == "4" ];then
+		# GT-AC2900从386.1开始已经支持梅林固件，其UI是ASUSWRT
+		ROG_GTAC2900=0
+	fi
+	# GT-AX11000
+	if [ "${MODEL}" == "GT-AX11000" -o "${MODEL}" == "GT-AX11000_BO4" ] && [ "${FW_TYPE_CODE}" == "3" -o "${FW_TYPE_CODE}" == "4" ];then
+		# GT-AX11000从386.2开始已经支持梅林固件，其UI是ASUSWRT
+		ROG_GTAX11000=0
+	fi
+	# GT-AXE11000
+	if [ "${MODEL}" == "GT-AXE11000" ] && [ "${FW_TYPE_CODE}" == "3" -o "${FW_TYPE_CODE}" == "4" ];then
+		# GT-AXE11000从386.5开始已经支持梅林固件，其UI是ASUSWRT
+		ROG_GTAXE11000=0
+	fi
+	# ROG UI
+	if [ "${ROG_GTAC5300}" == "1" -o "${ROG_RTAC86U}" == "1" -o "${ROG_GTAC2900}" == "1" -o "${ROG_GTAX11000}" == "1" -o "${ROG_GTAXE11000}" == "1" -o "${ROG_GTAX6000}" == "1" ];then
+		# GT-AC5300、RT-AC86U部分版本、GT-AC2900部分版本、GT-AX11000部分版本、GT-AXE11000官改版本， GT-AX6000 骚红皮肤
+		UI_TYPE="ROG"
+	fi
+	# TUF UI
+	if [ "${MODEL}" == "TUF-AX3000" ];then
+		# 官改固件，橙色皮肤
+		UI_TYPE="TUF"
+	fi
+}
+
 exit_install(){
 	local state=$1
 	case $state in
@@ -55,47 +102,70 @@ exit_install(){
 			echo_date "你的固件平台不能安装！！!"
 			echo_date "本插件支持机型/平台：https://github.com/koolshare/rogsoft#rogsoft"
 			echo_date "退出安装！"
-			# rm -rf /tmp/netbird* >/dev/null 2>&1
+			rm -rf /tmp/${module}* >/dev/null 2>&1
 			exit 1
 			;;
 		0|*)
-			# rm -rf /tmp/netbird* >/dev/null 2>&1
+			rm -rf /tmp/${module}* >/dev/null 2>&1
 			exit 0
 			;;
 	esac
 }
 
+install_ui(){
+	# intall different UI
+	get_ui_type
+	if [ "${UI_TYPE}" == "ROG" ];then
+		echo_date "安装ROG皮肤！"
+		sed -i '/asuscss/d' /koolshare/webs/Module_${module}.asp >/dev/null 2>&1
+	fi
+	if [ "${UI_TYPE}" == "TUF" ];then
+		echo_date "安装TUF皮肤！"
+		sed -i '/asuscss/d' /koolshare/webs/Module_${module}.asp >/dev/null 2>&1
+		sed -i 's/3e030d/3e2902/g;s/91071f/92650F/g;s/680516/D0982C/g;s/cf0a2c/c58813/g;s/700618/74500b/g;s/530412/92650F/g' /koolshare/webs/Module_${module}.asp >/dev/null 2>&1
+	fi
+	if [ "${UI_TYPE}" == "ASUSWRT" ];then
+		echo_date "安装ASUSWRT皮肤！"
+		sed -i '/rogcss/d' /koolshare/webs/Module_${module}.asp >/dev/null 2>&1
+	fi
+}
+
+
 install_now(){
     local TITLE="netbird"
-	local DESCR="基于wiregurad协议的零配置内网穿透安全组网工具！"
+	local DESCR="基于wiregurad协议的零配置内网穿透安全组网工具"
 	local PLVER=$(cat ${DIR}/version)
- 
-	echo_date "安装前停止运行中的旧版本插件..."	
-	if [ "$(dbus get netbird_enable)" == "1" ] && [ -f "/koolshare/scripts/netbird.sh" ]; then
-		echo_date "检测到 NetBird 正在运行，执行安装前关闭..."
-		sh /koolshare/scripts/netbird.sh stop 
-		sleep 2 
+
+    # stop first
+	local ENABLE=$(dbus get ${module}_enable)
+	if [ "${ENABLE}" == "1" -a -f "/koolshare/scripts/${module}_config.sh" ];then
+		echo_date "安装前先关闭${TITLE}插件，以保证更新成功！"
+		sh /koolshare/scripts/${module}_config.sh stop >/dev/null 2>&1
 	fi
- 
-	echo_date "安装前彻底清理旧版本残留文件..."	
-	rm -rf /koolshare/bin/netbird* >/dev/null 2>&1              # 删除二进制文件
-	rm -rf /koolshare/res/icon-netbird.png >/dev/null 2>&1      # 删除图标
-	rm -rf /koolshare/scripts/netbird_* >/dev/null 2>&1         # 删除所有 netbird 开头脚本
-	rm -rf /koolshare/scripts/uninstall_netbird.sh >/dev/null 2>&1 # 删除卸载脚本
-	rm -rf /koolshare/webs/Module_netbird.asp >/dev/null 2>&1        # 删除所有 ASP 页面
-	find /koolshare/init.d -name "*netbird*" -o -name "*NetBird*" | xargs rm -rf  # 删除大小写变种的 init.d 脚本
- 
-    echo_date "复制文件..."	
-    cp -rf /tmp/netbird/init.d/* /koolshare/init.d/
-    cp -rf /tmp/netbird/scripts/* /koolshare/scripts/
-	cp -rf /tmp/netbird/uninstall.sh /koolshare/scripts/uninstall_netbird.sh
-    cp -rf /tmp/netbird/webs/* /koolshare/webs/
-    cp -rf /tmp/netbird/res/* /koolshare/res/
-  
-	echo_date "设置权限..."	
-    chmod 755 /koolshare/scripts/*netbird*.sh 
-    chmod 755 /koolshare/init.d/*NetBird.sh
-	chmod 644 /koolshare/webs/Module_netbird.asp
+
+    # remove some file first
+    find /koolshare/init.d -name "*${module}*" | xargs rm -rf
+
+    echo_date "安装插件相关文件..."
+    # cp -rf /tmp/${module}/bin/* /koolshare/bin/
+    cp -rf /tmp/${module}/res/* /koolshare/res/
+    cp -rf /tmp/${module}/scripts/* /koolshare/scripts/
+    cp -rf /tmp/${module}/webs/* /koolshare/webs/
+	cp -rf /tmp/${module}/uninstall.sh /koolshare/scripts/uninstall_${module}.sh
+
+    mkdir -p /koolshare/configs/netbird
+    # 创建 /var/lib/netbird 软链接
+	ln -sf /koolshare/configs/netbird /var/lib
+
+    chmod 755 /koolshare/scripts/* >/dev/null 2>&1
+
+    # make start up script link
+	if [ ! -L "/koolshare/init.d/S97${module}.sh" -a -f "/koolshare/scripts/${module}_config.sh" ];then
+		ln -sf /koolshare/scripts/${module}_config.sh /koolshare/init.d/S97${module}.sh
+	fi
+
+    # intall different UI
+	install_ui
 
     # 下载二进制文件
     ARCH=$(uname -m)
@@ -113,24 +183,25 @@ install_now(){
 	GITAPI="https://api.github.com/repos/netbirdio/netbird/releases/latest"
 	TAGNAME=$(curl -s ${GITAPI} | jq -r '.tag_name | sub("^v"; "")')
 	DOWNLOAD_PATH="v${TAGNAME}/netbird_${TAGNAME}_linux_${BIN_ARCH}.tar.gz"
-	wget -O /tmp/netbird.tar.gz "${PROXY}${GITHUB}/${DOWNLOAD_PATH}" 
+	wget -O /tmp/netbird.tar.gz "${PROXY}${GITHUB}/${DOWNLOAD_PATH}"
     tar -xzf /tmp/netbird.tar.gz -C /koolshare/bin/
     chmod 755 /koolshare/bin/netbird
 
-    # 创建卸载数据库 
+    # dbus value
 	echo_date "设置插件默认参数..."
-	dbus set netbird_enable=0 
-	dbus set netbird_version="${PLVER}"
-	dbus set netbird_management_url="https://api.netbird.io"
-	dbus set netbird_setup_key=""
-	dbus set softcenter_module_netbird_version="${PLVER}"
-	dbus set softcenter_module_netbird_install="1"
-	dbus set softcenter_module_netbird_name="netbird"
-	dbus set softcenter_module_netbird_title="${TITLE}"
-	dbus set softcenter_module_netbird_description="${DESCR}"
+	dbus set ${module}_enable=0
+	dbus set ${module}_version="${PLVER}"
+	dbus set ${module}_management_url="https://api.netbird.io"
+	dbus set ${module}_setup_key=""
+
+	dbus set softcenter_module_${module}_version="${PLVER}"
+	dbus set softcenter_module_${module}_install="1"
+	dbus set softcenter_module_${module}_name="${module}"
+	dbus set softcenter_module_${module}_title="${TITLE}"
+	dbus set softcenter_module_${module}_description="${DESCR}"
 
     echo_date "${TITLE}插件安装完毕！"
-	exit_install 0
+	exit_install
 }
 
 install(){

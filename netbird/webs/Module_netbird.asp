@@ -212,6 +212,7 @@
                 async: false,
                 success: function (data) {
                     dbus = data.result[0];
+                    console.log(dbus);
                     conf2obj();
                     register_event();
                     if (dbus["netbird_enable"] == "1") {
@@ -228,6 +229,10 @@
 
             if (dbus["netbird_version"]) {
                 E("netbird_version").innerHTML = " - " + dbus["netbird_version"];
+            }
+            if (dbus["netbird_management_url"]) {
+                E("netbird_management_url").value = dbus["netbird_management_url"];
+                E("netbird_console_btn").href = dbus["netbird_management_url"];
             }
             if (dbus["netbird_setup_key"]) {
                 E("netbird_setup_key").value = dbus["netbird_setup_key"];
@@ -246,7 +251,6 @@
                     } else {
                         E("netbird_enable").checked = true;
                     }
-                    save();
                 });
         }
 
@@ -277,9 +281,12 @@
         }
 
         function save() {
-            var dbus_new = {};      
+            var dbus_new = {};
             dbus_new["netbird_enable"] = E("netbird_enable").checked ? '1' : '0';
+            dbus_new["netbird_management_url"] = E("netbird_management_url").value;
             dbus_new["netbird_setup_key"] = E("netbird_setup_key").value;
+
+            E("netbird_console_btn").href = dbus["netbird_management_url"];
 
             var id = parseInt(Math.random() * 100000000);
             var postData = { "id": id, "method": "netbird_config.sh", "params": ["web_submit"], "fields": dbus_new };
@@ -383,7 +390,7 @@
         function menu_hook(title, tab) {
             tabtitle[tabtitle.length - 1] = new Array("", "netbird");
             tablink[tablink.length - 1] = new Array("", "Module_netbird.asp");
-        } 
+        }
     </script>
 </head>
 
@@ -440,8 +447,9 @@
                                             <span><a type="button" class="ks_btn" href="javascript:void(0);"
                                                     onclick="get_log_never_close()"
                                                     style="margin-left:5px;">详细状态</a></span>
-                                            <span><a type="button" class="ks_btn" href="https://app.netbird.io"
-                                                    target="_blank" style="margin-left:5px;">打开控制台</a></span>
+                                            <span><a type="button" id="netbird_console_btn" class="ks_btn"
+                                                    href="https://app.netbird.io" target="_blank"
+                                                    style="margin-left:5px;">打开控制台</a></span>
                                             <span><a type="button" class="ks_btn" href="javascript:void(0);"
                                                     onclick="update()" style="margin-left:5px;">更新版本</a></span>
                                         </div>
@@ -470,13 +478,19 @@
                                                         </div>
                                                     </td>
                                                 </tr>
+                                                <tr id="management_url_tr">
+                                                    <th>管理url</th>
+                                                    <td>
+                                                        <input type="text" id="netbird_management_url"
+                                                            class="input_ss_table"
+                                                            style="background-color: rgb(89, 110, 116);width:300px;">
+                                                    </td>
+                                                </tr>
                                                 <tr id="setup_key_tr">
                                                     <th>setup key</th>
                                                     <td>
                                                         <input type="text" id="netbird_setup_key" class="input_ss_table"
                                                             style="background-color: rgb(89, 110, 116);width:300px;">
-                                                        <span><a type="button" class="ks_btn" href="javascript:void(0);"
-                                                                onclick="save()" style="margin-left:5px;">▲</a></span>
                                                     </td>
                                                 </tr>
                                                 <tr id="netbird_status_tr" style="display:none;">
@@ -485,6 +499,14 @@
                                                         <div id="netbird_status"
                                                             style="font-family: emoji;white-space: pre-wrap;padding-left: 5px;">
                                                             检测中...
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr id="apply_tr">
+                                                    <td colspan="2">
+                                                        <div style="text-align:center;">
+                                                            <input class="button_gen" id="netbird_apply_btn"
+                                                                onclick="save()" type="button" value="重启插件" />
                                                         </div>
                                                     </td>
                                                 </tr>

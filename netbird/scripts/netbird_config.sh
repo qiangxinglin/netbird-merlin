@@ -1,18 +1,103 @@
-#!/bin/sh 
+#!/bin/sh
+
 source /koolshare/scripts/base.sh
-eval $(dbus export netbird) 
+eval $(dbus export netbird)
 alias echo_date='echo 【$(TZ=UTC-8 date -R +%Y年%m月%d日\ %X)】:'
-LOGFILE=/tmp/upload/netbird_log.txt 
-LOGUPDATEFILE=/tmp/upload/netbird_update_log.txt 
+LOGFILE=/tmp/upload/netbird_log.txt
+LOGSVCFILE=/tmp/upload/netbird_service_log.txt
+LOGUPDATEFILE=/tmp/upload/netbird_update_log.txt
+
+add_iptables_rule() {
+    # $1: 操作类型，"add" 表示添加，"del" 表示删除
+    echo_date "获取 netbird IPv4 地址..." >> ${LOGFILE}
+    NETBIRD_IPV4=""
+    COUNT=0
+    while [ -z "$NETBIRD_IPV4" ] && [ $COUNT -lt 30 ]; do
+        NETBIRD_IPV4=$(netbird status --ipv4 2>/dev/null)
+        if [ -n "$NETBIRD_IPV4" ]; then
+            break
+        fi
+        sleep 1
+        COUNT=$((COUNT+1))
+    done
+    if [ -n "$NETBIRD_IPV4" ]; then
+        LAN_IP=$(nvram get lan_ipaddr)
+        iptables -t nat -A PREROUTING -d $NETBIRD_IPV4/32 -j DNAT --to-destination $LAN_IP -m comment --comment "netbird_rule"
+        echo_date "添加 iptables DNAT: $NETBIRD_IPV4" >> ${LOGFILE}
+    else
+        echo_date "netbird IPv4 获取超时, 未进行 DNAT 设置" >> ${LOGFILE}
+    fi
+}
+
+delete_iptables_rule() {
+    iptables -t nat -D PREROUTING $(iptables -t nat -L --line-numbers | grep "netbird_rule" | awk '{print $1}') >/dev/null 2>&1
+    echo_date "删除 netbird DNAT" >> ${LOGFILE}
+}
+
+close_in_five() {
+	echo_date "插件将在5秒后自动关闭！！"
+	local i=5
+	while [ $i -ge 0 ]; do
+		sleep 1
+		echo_date $i
+		let i--
+	done
+	dbus set netbird_enable="0"
+	echo_date "插件已关闭！！"
+	exit
+}
+
+start_netbird() {
+    export NB_SETUP_KEY=${netbird_setup_key}
+    export NB_MANAGEMENT_URL=${netbird_management_url}
+    export NB_LOG_LEVEL=error
+    export NB_DISABLE_PROFILES=true
+    export NB_DISABLE_DNS=true
+
+    echo_date "启动 netbird service" >> ${LOGFILE}
+    start-stop-daemon -S -b -q -m -p /var/run/netbird.pid -x /koolshare/bin/netbird -- service run --log-file ${LOGSVCFILE}
+
+    local exist_pid
+    local i=10
+    until [ -n "${exist_pid}" ]; do
+        exist_pid=$(pidof "netbird")
+        i=$((i-1))
+        if [ $i -eq 0 ]; then
+            echo_date "netbird service 启动失败" >> ${LOGFILE}
+            close_in_five
+        fi
+        usleep 250000
+    done
+    echo_date "netbird service 启动成功, pid: ${exist_pid}" >> ${LOGFILE}
+
+    netbird up >> ${LOGFILE}
+    sleep 3
+
+    add_iptables_rule
+}
+
+stop_netbird() {
+    echo_date "停止 netbird" >> ${LOGFILE}
+    netbird down
+    killall -9 netbird 2>/dev/null
+    delete_iptables_rule
+}
+
 
 
 case $1 in
 start)
 	if [ "${netbird_enable}" == "1" ];then
-		echo start by wan-start >> ${LOGFILE}
-	else
-		logger "netbird插件未开启，跳过！"
+		start_netbird
+		logger "[软件中心]: 启动netbird！"
 	fi
+	;;
+restart)
+    stop_netbird
+    start_netbird
+    ;;
+stop)
+    stop_netbird
 	;;
 esac
 
@@ -20,19 +105,10 @@ esac
 case $2 in
 web_submit)
     echo "" > ${LOGFILE}
-	echo_date "netbird merlin addon by zhaxg" >> ${LOGFILE}
-    echo_date "netbird_enable:${netbird_enable}" >> ${LOGFILE}
-    echo_date "netbird_setup_key:${netbird_setup_key}" >> ${LOGFILE}
 	http_response "$1"
+    stop_netbird
     if [ "${netbird_enable}" == "1" ];then
-        echo_date "准备启动netbird" >> ${LOGFILE}
-		/koolshare/scripts/netbird_service.sh start       
-        echo_date "netbird started please wait ..." >> ${LOGFILE}
-	else
-        echo_date "准备关闭netbird" >> ${LOGFILE}
-        netbird down
-		/koolshare/scripts/netbird_service.sh stop
-        sleep 3
+        start_netbird
 	fi
 
     echo_date "操作完成" >> ${LOGFILE}
@@ -41,17 +117,17 @@ web_submit)
 update)
     echo "" > ${LOGUPDATEFILE}
     http_response "update netbird please wait ..."
-    
+
     latest_version_url="https://api.github.com/repos/netbirdio/netbird/releases/latest"
     latest_version_file="/tmp/netbird_latest_version.json"
     echo_date "准备更新，检测最新版本：$latest_version_url" >> ${LOGUPDATEFILE}
- 
+
     wget "$latest_version_url" -O "$latest_version_file"
     tag_name=$(cat $latest_version_file | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     download_url=$(cat $latest_version_file | grep '"browser_download_url":' | grep 'linux_arm64.tar.gz' | sed -E 's/.*"([^"]+)".*/\1/')
- 
+
     if [[ "$tag_name" == "$netbird_version" ]]; then
-        echo_date "当前版本已是最新($netbird_version)，无需更新。" >> ${LOGUPDATEFILE} 
+        echo_date "当前版本已是最新($netbird_version)，无需更新。" >> ${LOGUPDATEFILE}
     else
         echo_date "当前版本：$netbird_version, 最新版本：$tag_name, 开始更新" >> ${LOGUPDATEFILE}
         dbus set netbird_version="$tag_name"
@@ -66,57 +142,12 @@ update)
     fi
 
     echo_date "操作完成" >> ${LOGUPDATEFILE}
-    echo "XU6J03M6" >> ${LOGUPDATEFILE} 
-    
+    echo "XU6J03M6" >> ${LOGUPDATEFILE}
+
     ;;
 status)
-    #状态
     STATUS=$(netbird status)
     ENCODED_STATUS=$(echo "base64://"$(printf "%s" "$STATUS" | base64))
-    
-    #正常情况直接返回链接状态
-    if printf '%s' "$STATUS" | grep "Signal: Connected"; then 
-        netbird status --yaml > ${LOGFILE} #状态正常重置日志文件为详细状态信息
-        echo "XU6J03M6" >> ${LOGFILE}
-        http_response $ENCODED_STATUS
-        return 0 
-    fi
- 
-    if printf '%s' "$STATUS" | grep -E "Signal: Disconnected|Daemon status: NeedsLogin"; then
-        #echo "XU6J03M6" >> ${LOGFILE}
-
-        #如果检测到登录成功，则提示用户连接
-        LOGIN_SUCCESS=$(grep -oE "Logging successfully" "$LOGFILE" | tail -n1)
-        if  [[ -n "$LOGIN_SUCCESS" ]]; then
-            nohup netbird up >> $LOGFILE 2>&1 &
-            sleep 3 #等待启动完成
-            http_response "成功完成登录，正在启动连接，请稍等..."
-            return 0
-        fi
-
-        #如果检测到SSO登录URL，则提示用户登录
-        LOGIN_URL=$(grep -oE "https?://[^ ]*activate\?user_code=[^ ]+" "$LOGFILE" | tail -n1) 
-        if  [[ -n "$LOGIN_URL" ]]; then
-            MESSAGE="需要授权登录：<span class='auth-link'><a href='$LOGIN_URL' target='_blank'>$LOGIN_URL</a></span>"
-            ENCODED_MESSAGE=$(echo "base64://"$(printf "%s" "$MESSAGE" | base64))
-            http_response $ENCODED_MESSAGE
-            return 0
-        fi
-
-        #根据不同的场景进行登录认证
-        echo "" > ${LOGFILE} 
-        if [[ -n "$netbird_setup_key" ]]; then
-            echo_date "使用netbird_setup_key登录：${netbird_setup_key}" >> ${LOGFILE}
-            nohup netbird login -k ${netbird_setup_key} >> $LOGFILE 2>&1 &
-        else
-            nohup netbird login >> $LOGFILE 2>&1 &
-        fi
-        sleep 3 #等待登录完成
-        http_response "正在登录中，请稍等..."
-        return 0 
-    fi 
-
-    ERRMSG="netbird-up无法重新建立连接，重试中，请稍等..."
-    http_response $ERRMSG
+    http_response $ENCODED_STATUS
     ;;
 esac
